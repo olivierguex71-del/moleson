@@ -300,9 +300,6 @@ class MembershipType(TranslatedFieldsMixin, TimeStampedModel):
         default=0,
         help_text=_("Appliqué au prix de base, sauf sur les cours intensifs."),
     )
-    annual_fee = models.DecimalField(
-        _("cotisation annuelle (CHF)"), max_digits=8, decimal_places=2, null=True, blank=True
-    )
     is_active = models.BooleanField(_("actif"), default=True)
 
     class Meta:

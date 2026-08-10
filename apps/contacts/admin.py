@@ -88,7 +88,7 @@ class ContactGroupAdmin(ModelAdmin):
 
 @admin.register(MembershipType)
 class MembershipTypeAdmin(ModelAdmin):
-    list_display = ["name_fr", "name_de", "discount_percent", "annual_fee", "is_active"]
+    list_display = ["name_fr", "name_de", "discount_percent", "is_active"]
     list_filter = ["is_active"]
     search_fields = ["name_fr", "name_de", "code"]
 

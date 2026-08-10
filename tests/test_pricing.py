@@ -113,21 +113,61 @@ def test_le_rabais_reste_entre_0_et_100_pour_cent(rabais, borne):
     assert detail.discount_percent == borne
 
 
-def test_l_arrondi_se_fait_au_centime():
-    """478 CHF à 15 % donne 71.70 exactement ; on vérifie l'absence de dérive binaire."""
+def test_un_montant_deja_juste_n_est_pas_deplace():
+    """478 CHF à 15 % donne 406.30, déjà multiple de 5 centimes."""
     detail = compute_price(base_price=Decimal("478.00"), contact_discount_percent=Decimal("15"))
 
-    assert detail.discount_amount == Decimal("71.70")
     assert detail.final_price == Decimal("406.30")
-    assert detail.base_price - detail.discount_amount == detail.final_price
+    assert detail.discount_amount == Decimal("71.70")
 
 
-def test_l_arrondi_d_un_demi_centime_monte():
-    """333.33 à 5 % vaut 16.6665 : arrondi commercial à 16.67."""
+@pytest.mark.parametrize(
+    ("base", "rabais", "attendu"),
+    [
+        (Decimal("333.33"), Decimal("5"), Decimal("316.65")),  # 316.6635 arrondi vers le bas
+        (Decimal("299.90"), Decimal("10"), Decimal("269.90")),  # 269.91 arrondi vers le bas
+        (Decimal("150.00"), Decimal("15"), Decimal("127.50")),
+        (Decimal("478.00"), Decimal("5"), Decimal("454.10")),
+    ],
+)
+def test_le_montant_facture_est_toujours_un_multiple_de_cinq_centimes(base, rabais, attendu):
+    detail = compute_price(base_price=base, contact_discount_percent=rabais)
+
+    assert detail.final_price == attendu
+    assert detail.final_price % Decimal("0.05") == 0
+
+
+def test_le_detail_de_la_facture_tombe_juste_apres_arrondi():
+    """Invariant : prix de base − remise = montant facturé, sans exception.
+
+    Arrondir séparément la remise et le total produirait des factures dont le
+    détail ne s'additionne pas — le genre d'écart qu'un participant remarque.
+    """
     detail = compute_price(base_price=Decimal("333.33"), contact_discount_percent=Decimal("5"))
 
-    assert detail.discount_amount == Decimal("16.67")
-    assert detail.final_price == Decimal("316.66")
+    assert detail.base_price - detail.discount_amount == detail.final_price
+    assert detail.discount_amount == Decimal("16.68")
+
+
+def test_un_prix_impose_est_lui_aussi_ramene_au_pas_de_cinq_centimes():
+    """Sans quoi des montants non conformes rentreraient par une porte dérobée."""
+    detail = compute_price(base_price=Decimal("300.00"), price_override=Decimal("287.53"))
+
+    assert detail.final_price == Decimal("287.55")
+
+
+@pytest.mark.parametrize(
+    ("impose", "attendu"),
+    [
+        (Decimal("100.02"), Decimal("100.00")),
+        (Decimal("100.03"), Decimal("100.05")),
+        (Decimal("100.025"), Decimal("100.05")),  # la moitié du pas monte
+    ],
+)
+def test_l_arrondi_va_au_plus_proche_dans_les_deux_sens(impose, attendu):
+    detail = compute_price(base_price=Decimal("300.00"), price_override=impose)
+
+    assert detail.final_price == attendu
 
 
 def test_le_detail_porte_l_explication_du_rabais():

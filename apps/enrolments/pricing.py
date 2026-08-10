@@ -20,10 +20,13 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.utils.translation import gettext_lazy as _
 
-#: Les montants sont en francs, au centime. La QR-facture accepte le centime ;
-#: si l'Unipop souhaite l'arrondi commercial à 5 centimes, c'est ici que la
-#: décision se pose — et nulle part ailleurs.
 CENTIME = Decimal("0.01")
+
+#: Tout montant facturé est un multiple de 5 centimes, usage commercial suisse.
+#: La QR-facture accepterait le centime : c'est un choix de l'Unipop, appliqué
+#: ici et nulle part ailleurs — y compris aux prix imposés à la main, sans quoi
+#: des montants non conformes rentreraient par une porte dérobée.
+PAS_DE_FACTURATION = Decimal("0.05")
 
 
 @dataclass(frozen=True)
@@ -42,7 +45,21 @@ class PriceBreakdown:
 
 
 def _arrondi(montant: Decimal) -> Decimal:
+    """Arrondit au centime — pour les valeurs intermédiaires."""
     return montant.quantize(CENTIME, rounding=ROUND_HALF_UP)
+
+
+def arrondi_facturable(montant: Decimal) -> Decimal:
+    """Arrondit au multiple de 5 centimes le plus proche.
+
+    S'applique au **montant final**, jamais aux valeurs intermédiaires : la
+    remise se déduit ensuite par différence, de sorte que
+    `prix de base − remise = montant facturé` reste vrai à l'affichage comme
+    sur la facture. Arrondir séparément les deux briserait cette égalité et
+    produirait des factures dont le détail ne tombe pas juste.
+    """
+    pas = (Decimal(montant) / PAS_DE_FACTURATION).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return (pas * PAS_DE_FACTURATION).quantize(CENTIME)
 
 
 def compute_price(
@@ -58,7 +75,7 @@ def compute_price(
     base_price = _arrondi(Decimal(base_price))
 
     if price_override is not None:
-        impose = _arrondi(Decimal(price_override))
+        impose = arrondi_facturable(price_override)
         return PriceBreakdown(
             base_price=base_price,
             discount_percent=Decimal("0"),
@@ -78,12 +95,17 @@ def compute_price(
         explication = contact_discount_label or str(_("Tarif plein"))
 
     pourcentage = max(Decimal("0"), min(pourcentage, Decimal("100")))
-    remise = _arrondi(base_price * pourcentage / Decimal("100"))
+
+    # L'arrondi porte sur le montant facturé ; la remise s'en déduit, ce qui
+    # garantit que le détail de la facture tombe juste.
+    montant_facture = arrondi_facturable(
+        base_price * (Decimal("100") - pourcentage) / Decimal("100")
+    )
 
     return PriceBreakdown(
         base_price=base_price,
         discount_percent=pourcentage,
-        discount_amount=remise,
-        final_price=_arrondi(base_price - remise),
+        discount_amount=_arrondi(base_price - montant_facture),
+        final_price=montant_facture,
         explanation=explication,
     )
