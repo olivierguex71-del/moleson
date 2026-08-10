@@ -56,3 +56,37 @@ def test_les_colonnes_inattendues_sont_listees():
     mapping = resolve_columns(["Code", "Colonne exotique"], [Column("code")])
 
     assert mapping.unexpected == ["Colonne exotique"]
+
+
+def test_un_export_est_trouve_quelle_que_soit_la_casse_de_son_nom(tmp_path):
+    """Le nom d'un fichier téléchargé dépend de la langue d'interface de Welante
+    et du navigateur : « Categories.xlsx », « categories.xlsx », « Kategorien »…
+    """
+    import pandas as pd
+
+    from apps.welante.sources import find_sources
+
+    pd.DataFrame([{"Catégorie": "Cours de langues"}]).to_excel(
+        tmp_path / "categories_2026.xlsx", index=False
+    )
+
+    trouve = {f.source.key: f for f in find_sources(tmp_path)}["categories"]
+
+    assert trouve.exists
+    assert trouve.path.name == "categories_2026.xlsx"
+
+
+def test_les_fichiers_temporaires_d_excel_sont_ignores(tmp_path):
+    """Excel laisse des « ~$fichier.xlsx » ouverts, illisibles et sans données."""
+    import pandas as pd
+
+    from apps.welante.sources import find_sources
+
+    pd.DataFrame([{"Catégorie": "Cours de langues"}]).to_excel(
+        tmp_path / "Categories.xlsx", index=False
+    )
+    (tmp_path / "~$Categories.xlsx").write_bytes(b"verrou Excel")
+
+    trouve = {f.source.key: f for f in find_sources(tmp_path)}["categories"]
+
+    assert trouve.path.name == "Categories.xlsx"

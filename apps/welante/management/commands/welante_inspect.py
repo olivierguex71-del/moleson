@@ -48,7 +48,8 @@ class Command(BaseCommand):
 
     def _inspecter(self, fichier) -> None:
         source = fichier.source
-        self.stdout.write(self.style.MIGRATE_HEADING(f"\n{source.label} — {source.pattern}"))
+        motifs = " ou ".join(source.patterns)
+        self.stdout.write(self.style.MIGRATE_HEADING(f"\n{source.label} — {motifs}"))
 
         if not fichier.exists:
             self.stdout.write(self.style.WARNING("  absent du dossier"))

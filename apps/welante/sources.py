@@ -21,7 +21,7 @@ class Source:
 
     key: str
     label: str
-    pattern: str
+    patterns: tuple[str, ...]
     columns: list[Column]
     header_row: int = 0
     skip_rows: tuple[int, ...] = ()
@@ -35,8 +35,11 @@ class Source:
 CATEGORIES = Source(
     key="categories",
     label="Catégories",
-    pattern="Cate*gories*.xlsx",
-    note="Taxonomie à deux niveaux ; le Web-Code devient le slug, à préserver.",
+    patterns=("*cat*gori*.xlsx", "*kategori*.xlsx"),
+    note=(
+        "Taxonomie à deux niveaux ; le Web-Code devient le slug, à préserver. "
+        "Le motif est large : le nom du fichier dépend de la langue d'interface."
+    ),
     columns=[
         Column("name", ("Catégorie", "Kategorie", "Nom", "Name", "Bezeichnung"), required=True),
         Column("web_code", ("Web-Code", "Webcode", "Web Code", "Code web")),
@@ -48,7 +51,7 @@ CATEGORIES = Source(
 COURSES = Source(
     key="courses",
     label="Cours",
-    pattern="Cours_Tous*.xlsx",
+    patterns=("Cours_Tous*.xlsx", "*kurse*.xlsx"),
     note="Titre et descriptif contiennent l'allemand et le français concaténés.",
     columns=[
         Column("code", ("Code", "Numéro", "Nummer", "Kursnummer", "N°"), required=True),
@@ -75,7 +78,7 @@ COURSES = Source(
 TRAINERS = Source(
     key="trainers",
     label="Intervenant-e-s",
-    pattern="Intervenant-e-s*.xlsx",
+    patterns=("Intervenant*.xlsx", "*referent*.xlsx"),
     note="Contient des numéros AVS : données sensibles, chiffrées à l'import.",
     columns=[
         Column("last_name", ("Nom", "Name", "Nachname"), required=True),
@@ -109,7 +112,7 @@ TRAINERS = Source(
 PARTICIPANTS = Source(
     key="participants",
     label="Participant-e-s",
-    pattern="Participant-e-s*.xlsx",
+    patterns=("Participant*.xlsx", "*teilnehmer*.xlsx"),
     note="Une ligne par inscription : les contacts s'y répètent, c'est normal.",
     columns=[
         Column("last_name", ("Nom", "Name", "Nachname"), required=True),
@@ -141,7 +144,7 @@ PARTICIPANTS = Source(
 MEMBERS = Source(
     key="members",
     label="Membres",
-    pattern="membres.xlsx",
+    patterns=("membres*.xlsx", "*mitglied*.xlsx"),
     header_row=0,
     skip_rows=(1,),
     note=(
@@ -209,14 +212,28 @@ def find_sources(directory) -> list[SourceFile]:
     « Intervenant-e-s-9 » après « Intervenant-e-s-10 », et retiendrait donc un
     export vieux d'un an.
     """
+    import fnmatch
     from pathlib import Path
 
     dossier = Path(directory)
+    fichiers = [chemin for chemin in dossier.glob("*.xlsx") if not chemin.name.startswith("~$")]
+
     trouves: list[SourceFile] = []
     for source in SOURCES:
-        correspondances = sorted(dossier.glob(source.pattern), key=lambda f: f.stat().st_mtime)
+        # Comparaison insensible à la casse : le nom d'un export dépend de la
+        # langue d'interface de Welante et du navigateur qui l'a téléchargé.
+        correspondances = sorted(
+            (
+                chemin
+                for chemin in fichiers
+                if any(fnmatch.fnmatch(chemin.name.lower(), m.lower()) for m in source.patterns)
+            ),
+            key=lambda f: f.stat().st_mtime,
+        )
         if correspondances:
             trouves.append(SourceFile(source=source, path=correspondances[-1]))
         else:
-            trouves.append(SourceFile(source=source, path=dossier / source.pattern, exists=False))
+            trouves.append(
+                SourceFile(source=source, path=dossier / source.patterns[0], exists=False)
+            )
     return trouves
