@@ -17,6 +17,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # Lecture des exports Welante. Volontairement hors des dépendances de
+    # production : la migration est une opération d'atelier, et pandas pèserait
+    # une cinquantaine de mégaoctets dans l'image servie en ligne.
+    "pandas>=2.2",
+    "openpyxl>=3.1",
     "pytest>=8.3",
     "pytest-django>=4.9",
     "pytest-cov>=6.0",

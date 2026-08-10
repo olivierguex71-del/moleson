@@ -51,6 +51,37 @@ docker compose run --rm app uv lock
 docker compose build app
 ```
 
+## Migration depuis Welante
+
+À faire sur la machine où se trouvent les exports, `data/` étant recopié à la main.
+
+```bash
+# 1. Décrire les fichiers présents — n'affiche aucune donnée personnelle,
+#    la sortie peut être copiée dans un message sans précaution.
+docker compose run --rm app python manage.py welante_inspect
+
+# 2. Créer les régions et les types d'adhésion (idempotent).
+docker compose run --rm app python manage.py seed_reference
+
+# 3. Simuler l'import : tout est exécuté, puis annulé.
+docker compose run --rm app python manage.py welante_import --report data/anomalies.csv
+
+# 4. Importer réellement, une fois le rapport lu.
+docker compose run --rm app python manage.py welante_import --commit
+```
+
+Si `welante_inspect` signale des colonnes non reconnues, ajouter leur intitulé
+aux alias dans `apps/welante/sources.py` — c'est le seul endroit à ajuster.
+
+Trois garde-fous à connaître :
+
+- **la simulation écrit puis annule**, elle éprouve donc les vraies contraintes
+  de la base ; un import qui passe en simulation passera pour de bon ;
+- **le rapport ne recopie jamais une valeur du fichier source** : il désigne une
+  ligne et une colonne, pour ne pas devenir un second exemplaire des données ;
+- **l'import refuse de démarrer sans `MOLESON_ENCRYPTION_KEYS`** quand il doit
+  traiter les numéros AVS des intervenants.
+
 ## Documents de référence
 
 - `CLAUDE.md` — contexte projet chargé par Claude Code à chaque session
