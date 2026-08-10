@@ -65,6 +65,23 @@ MOTS_FR = {
     "faire",
     "niveau",
     "débutant",
+    "débutants",
+    "atelier",
+    "initiation",
+    "perfectionnement",
+    # Vocabulaire propre au catalogue : dans « Allemand A1 - Débutants », le
+    # nom de la langue enseignée est souvent le seul indice disponible.
+    "allemand",
+    "anglais",
+    "italien",
+    "espagnol",
+    "français",
+    "portugais",
+    "russe",
+    "grec",
+    "informatique",
+    "peinture",
+    "cuisine",
     "séance",
     "séances",
     "inscription",
@@ -113,6 +130,20 @@ MOTS_DE = {
     "jeden",
     "stufe",
     "anfänger",
+    "fortgeschrittene",
+    "workshop",
+    # Pendant allemand du vocabulaire ci-dessus.
+    "deutsch",
+    "englisch",
+    "italienisch",
+    "spanisch",
+    "französisch",
+    "portugiesisch",
+    "russisch",
+    "griechisch",
+    "informatik",
+    "malen",
+    "kochen",
     "lektion",
     "lektionen",
     "anmeldung",
@@ -135,6 +166,11 @@ SEPARATEURS = [
 
 #: En deçà, la proposition part systématiquement en relecture humaine.
 SEUIL_DE_CONFIANCE = 0.75
+
+#: Qualité minimale pour accepter de couper un texte en deux langues. En dessous,
+#: le texte est traité comme monolingue : une coupure douteuse fabriquerait une
+#: traduction qui n'existe pas, faute plus grave qu'une traduction manquante.
+QUALITE_MINIMALE_DE_COUPURE = 0.6
 
 
 @dataclass(frozen=True)
@@ -227,13 +263,38 @@ def _split_on_separator(texte: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _nettoyer(fragment: str) -> str:
+    """Retire la ponctuation de liaison restée en bord de fragment.
+
+    Les titres Welante s'écrivent « … - Allemand A1 - Débutants » : une fois la
+    coupure faite, le tiret d'articulation se retrouve en tête du fragment.
+    """
+    return fragment.strip().strip("-–—").strip()
+
+
 def _segments(texte: str) -> list[str]:
-    """Découpe en lignes, ou en phrases si le texte tient sur une ligne."""
+    """Découpe le texte en fragments dont la langue peut être jugée séparément.
+
+    Par lignes, à défaut par phrases, à défaut sur le tiret entouré d'espaces.
+    Ce dernier cas vient des données réelles : les titres de cours s'écrivent
+    « Deutsch A1 - Anfänger - Allemand A1 - Débutants », le tiret servant à la
+    fois de ponctuation interne et de frontière entre les deux langues. On ne
+    peut donc pas couper sur le premier tiret venu — mais on peut juger chaque
+    fragment et chercher où la langue bascule.
+    """
     lignes = [ligne.strip() for ligne in texte.splitlines() if ligne.strip()]
     if len(lignes) > 1:
         return lignes
+
     phrases = [phrase.strip() for phrase in re.split(r"(?<=[.!?])\s+", texte) if phrase.strip()]
-    return phrases or [texte.strip()]
+    if len(phrases) > 1:
+        return phrases
+
+    tirets = [part.strip() for part in re.split(r"\s+[-–—]\s+", texte) if part.strip()]
+    if len(tirets) > 1:
+        return tirets
+
+    return [texte.strip()]
 
 
 def _split_on_language_shift(texte: str) -> tuple[str, str, str, float] | None:
@@ -264,12 +325,15 @@ def _split_on_language_shift(texte: str) -> tuple[str, str, str, float] | None:
                     langue_apres,
                 )
 
-    if meilleure is None:
+    if meilleure is None or meilleure[0] < QUALITE_MINIMALE_DE_COUPURE:
+        # Sans bascule nette, mieux vaut ne pas couper : « Deutsch B1 - Lass uns
+        # Deutsch sprechen! » est monolingue, et le scinder en deux langues
+        # inventerait une traduction française qui n'existe pas.
         return None
 
     qualite, coupure, langue_avant, _ = meilleure
-    bloc_avant = "\n".join(segments[:coupure])
-    bloc_apres = "\n".join(segments[coupure:])
+    bloc_avant = _nettoyer("\n".join(segments[:coupure]))
+    bloc_apres = _nettoyer("\n".join(segments[coupure:]))
     if langue_avant == "de":
         return bloc_apres, bloc_avant, "bascule de langue", qualite
     return bloc_avant, bloc_apres, "bascule de langue", qualite

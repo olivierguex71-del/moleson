@@ -283,8 +283,11 @@ class Course(TranslatedFieldsMixin, TimeStampedModel):
         Region, verbose_name=_("région"), related_name="courses", on_delete=models.PROTECT
     )
 
-    title_fr = models.CharField(_("titre (FR)"), max_length=200)
-    title_de = models.CharField(_("titre (DE)"), max_length=200, blank=True)
+    # 400 et non 200 : l'export Welante contient des titres de 359 caractères,
+    # titre et sous-titre confondus dans le même champ. Tronquer perdrait du
+    # contenu ; la longueur excessive est signalée à l'import, pour nettoyage.
+    title_fr = models.CharField(_("titre (FR)"), max_length=400)
+    title_de = models.CharField(_("titre (DE)"), max_length=400, blank=True)
     summary_fr = models.TextField(_("accroche (FR)"), blank=True)
     summary_de = models.TextField(_("accroche (DE)"), blank=True)
     description_fr = models.TextField(_("descriptif (FR)"), blank=True)

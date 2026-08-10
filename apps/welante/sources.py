@@ -35,7 +35,7 @@ class Source:
 CATEGORIES = Source(
     key="categories",
     label="Catégories",
-    pattern="Cate_gories_vhsfr_*.xlsx",
+    pattern="Cate*gories*.xlsx",
     note="Taxonomie à deux niveaux ; le Web-Code devient le slug, à préserver.",
     columns=[
         Column("name", ("Catégorie", "Kategorie", "Nom", "Name", "Bezeichnung"), required=True),
@@ -48,7 +48,7 @@ CATEGORIES = Source(
 COURSES = Source(
     key="courses",
     label="Cours",
-    pattern="Cours_Tous-*.xlsx",
+    pattern="Cours_Tous*.xlsx",
     note="Titre et descriptif contiennent l'allemand et le français concaténés.",
     columns=[
         Column("code", ("Code", "Numéro", "Nummer", "Kursnummer", "N°"), required=True),
@@ -58,7 +58,9 @@ COURSES = Source(
         Column("price", ("Prix", "Preis", "Tarif", "Kosten")),
         Column("participants", ("TN Min-Max", "TN Min Max", "Participants", "Teilnehmer")),
         Column("location", ("Lieu", "Ort", "Standort")),
-        Column("trainer", ("Intervenant", "Intervenant-e", "Referent", "Kursleiter")),
+        Column("trainer", ("Formateur/trice", "Intervenant", "Intervenant-e", "Referent")),
+        Column("status", ("Statut", "Status", "Zustand")),
+        Column("notes", ("Notes", "Notiz", "Remarques", "Bemerkungen")),
         Column("period", ("Période", "Periode", "Semestre", "Trimestre")),
         Column(
             "digit",
@@ -73,40 +75,53 @@ COURSES = Source(
 TRAINERS = Source(
     key="trainers",
     label="Intervenant-e-s",
-    pattern="Intervenant-e-s-*.xlsx",
+    pattern="Intervenant-e-s*.xlsx",
     note="Contient des numéros AVS : données sensibles, chiffrées à l'import.",
     columns=[
         Column("last_name", ("Nom", "Name", "Nachname"), required=True),
         Column("first_name", ("Prénom", "Vorname")),
         Column("email", ("Email", "E-Mail", "Courriel", "Mail")),
-        Column("phone", ("Téléphone", "Telefon", "Tél.", "Tel")),
-        Column("mobile", ("Mobile", "Natel", "Handy", "Portable")),
+        Column("phone", ("Téléphone privé", "Téléphone", "Telefon", "Tél.", "Tel")),
+        Column("mobile", ("Téléphone portable", "Mobile", "Natel", "Handy", "Portable")),
+        Column("salutation", ("Genre", "Civilité", "Anrede", "Geschlecht")),
+        Column("organisation", ("Entreprise", "Firma", "Organisation", "Société")),
+        Column("birth_date", ("Anniversaire", "Date de naissance", "Geburtstag")),
+        Column("address_complement", ("c/o", "Case postale", "Postfach")),
+        Column("country", ("Pays", "Land")),
         Column("street", ("Rue", "Strasse", "Adresse", "Adresse 1")),
         Column("postal_code", ("NPA", "PLZ", "Code postal")),
         Column("city", ("Localité", "Ort", "Lieu", "Ville")),
         Column("language", ("Langue", "Sprache", "Korrespondenzsprache")),
-        Column("iban", ("IBAN", "No IBAN", "IBAN-Nr")),
+        Column("iban", ("Formateur/trice Bank IBAN", "IBAN", "No IBAN", "IBAN-Nr")),
         Column(
             "bank",
-            ("Bank IBANname", "Banque", "Bank", "Nom de la banque"),
+            ("Formateur/trice Bank IBANname", "Bank IBANname", "Banque", "Bank"),
             note="Mélange noms de banque et codes BIC : à séparer.",
         ),
-        Column("ahv_number", ("No AVS", "AVS", "AHV", "AHV-Nr", "No AVS/AHV")),
-        Column("ahv_waiver", ("Renonciation AVS", "AHV-Verzicht", "Renonciation")),
+        Column("ahv_number", ("Formateur/trice AHV-Nr.", "No AVS", "No d'AVS", "AHV-Nr")),
+        Column(
+            "ahv_waiver",
+            ("Formateur/trice Renonciation AVS", "Renonciation AVS", "AHV-Verzicht"),
+        ),
     ],
 )
 
 PARTICIPANTS = Source(
     key="participants",
     label="Participant-e-s",
-    pattern="Participant-e-s_*.xlsx",
+    pattern="Participant-e-s*.xlsx",
     note="Une ligne par inscription : les contacts s'y répètent, c'est normal.",
     columns=[
         Column("last_name", ("Nom", "Name", "Nachname"), required=True),
         Column("first_name", ("Prénom", "Vorname")),
         Column("email", ("Email", "E-Mail", "Courriel", "Mail")),
-        Column("phone", ("Téléphone", "Telefon", "Tél.", "Tel")),
-        Column("mobile", ("Mobile", "Natel", "Handy", "Portable")),
+        Column("phone", ("Téléphone privé", "Téléphone", "Telefon", "Tél.", "Tel")),
+        Column("mobile", ("Téléphone portable", "Mobile", "Natel", "Handy", "Portable")),
+        Column("salutation", ("Genre", "Civilité", "Anrede", "Geschlecht")),
+        Column("organisation", ("Entreprise", "Firma", "Organisation", "Société")),
+        Column("birth_date", ("Anniversaire", "Date de naissance", "Geburtstag")),
+        Column("address_complement", ("c/o", "Case postale", "Postfach")),
+        Column("country", ("Pays", "Land")),
         Column("street", ("Rue", "Strasse", "Adresse", "Adresse 1")),
         Column("postal_code", ("NPA", "PLZ", "Code postal")),
         Column("city", ("Localité", "Ort", "Lieu", "Ville")),
@@ -129,27 +144,51 @@ MEMBERS = Source(
     pattern="membres.xlsx",
     header_row=0,
     skip_rows=(1,),
-    note="Deuxième ligne d'en-tête partielle ; une colonne par saison d'envoi.",
+    note=(
+        "Deuxième ligne d'en-tête partielle ; une colonne par saison d'envoi ; "
+        "le type d'adhésion est réparti sur trois colonnes cochées."
+    ),
     columns=[
         Column("last_name", ("Nom", "Name", "Nachname"), required=True),
         Column("first_name", ("Prénom", "Vorname")),
         Column("email", ("Email", "E-Mail", "Courriel", "Mail")),
+        Column("phone", ("Téléphone privé", "Téléphone", "Telefon", "Tél.", "Tel")),
+        Column("mobile", ("Téléphone portable", "Mobile", "Natel", "Handy", "Portable")),
+        Column("salutation", ("Genre", "Civilité", "Anrede", "Geschlecht")),
+        Column("organisation", ("Entreprise", "Firma", "Organisation", "Société")),
+        Column("birth_date", ("Anniversaire", "Date de naissance", "Geburtstag")),
+        Column("address_complement", ("c/o", "Case postale", "Postfach")),
+        Column("country", ("Pays", "Land")),
         Column("street", ("Rue", "Strasse", "Adresse", "Adresse 1")),
         Column("postal_code", ("NPA", "PLZ", "Code postal")),
         Column("city", ("Localité", "Ort", "Lieu", "Ville")),
         Column("language", ("Langue", "Sprache")),
-        Column("membership_type", ("Mitglieder", "Type", "Catégorie", "Mitgliedschaft")),
-        Column("function", ("Funktion", "Fonction", "Rôle")),
-        Column("since", ("Depuis", "Seit", "Membre depuis", "Eintritt")),
+        # Le type d'adhésion n'est pas une colonne à valeurs mais trois colonnes
+        # cochées — d'où la nécessité de les lire séparément.
+        Column("is_supporter", ("Membre supporter", "Supporter-Mitglied", "Supporter")),
+        Column("is_board", ("Vorstand", "Vorstandsmitglied", "Comité")),
+        Column("is_staff", ("Mitarbeiter", "Mitarbeiterin", "Collaborateur")),
+        Column("since", ("Créé", "Depuis", "Seit", "Membre depuis", "Eintritt")),
         Column("notes", ("Notes", "Notiz", "Remarques", "Bemerkungen")),
     ],
 )
 
 SOURCES: list[Source] = [CATEGORIES, COURSES, TRAINERS, PARTICIPANTS, MEMBERS]
 
-#: Préfixe des colonnes « une par saison » de `membres.xlsx`, transformées en
+#: Préfixes des colonnes « une par saison » de `membres.xlsx`, transformées en
 #: campagnes plutôt qu'en colonnes (voir apps/communications).
-PREFIXES_CAMPAGNE = ("programmversand", "programm_versand", "envoi_programme")
+#: L'inspection du fichier réel en a révélé quatre familles : « Programmversand »,
+#: « Programm Herbst 2020 », « Programme Herbst 2021 » et « Frühling 2021 » —
+#: preuve que l'intitulé dérivait à chaque saison, faute de modèle.
+PREFIXES_CAMPAGNE = (
+    "programmversand",
+    "programm_versand",
+    "programm_",
+    "programme_",
+    "envoi_programme",
+    "fruhling_",
+    "herbst_",
+)
 
 
 @dataclass
@@ -163,15 +202,20 @@ class SourceFile:
 
 
 def find_sources(directory) -> list[SourceFile]:
-    """Localise les exports dans un dossier, sans les ouvrir."""
+    """Localise les exports dans un dossier, sans les ouvrir.
+
+    En présence de plusieurs versions d'un même export, retient **la plus
+    récemment modifiée**. Un tri alphabétique se tromperait : il place
+    « Intervenant-e-s-9 » après « Intervenant-e-s-10 », et retiendrait donc un
+    export vieux d'un an.
+    """
     from pathlib import Path
 
     dossier = Path(directory)
     trouves: list[SourceFile] = []
     for source in SOURCES:
-        correspondances = sorted(dossier.glob(source.pattern))
+        correspondances = sorted(dossier.glob(source.pattern), key=lambda f: f.stat().st_mtime)
         if correspondances:
-            # Le plus récent en cas d'exports multiples horodatés.
             trouves.append(SourceFile(source=source, path=correspondances[-1]))
         else:
             trouves.append(SourceFile(source=source, path=dossier / source.pattern, exists=False))

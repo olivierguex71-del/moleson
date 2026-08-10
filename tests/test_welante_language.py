@@ -177,3 +177,50 @@ def test_un_decoupage_sur_n_a_pas_de_motif_de_relecture():
     resultat = split_bilingual("Italienisch für Anfänger / Italien pour débutants")
 
     assert resultat.review_reason == ""
+
+
+# --- Formes rencontrées dans l'export réel ---------------------------------
+
+
+def test_un_titre_articule_par_des_tirets_se_coupe_au_bon_endroit():
+    """Forme dominante des titres réels : le tiret sert à la fois de ponctuation
+    interne et de frontière entre les deux langues.
+
+    Couper au premier tiret venu séparerait « Deutsch A1 » de « Anfänger » ;
+    ne pas couper du tout rangeait la moitié française en allemand — c'est ce
+    qui se produisait, sur 232 champs, avant que l'export réel ne le révèle.
+    """
+    resultat = split_bilingual(
+        "Deutsch A1 - Anfänger, los geht's! - Allemand A1 - Débutants, lancez-vous !"
+    )
+
+    assert resultat.de == "Deutsch A1 - Anfänger, los geht's!"
+    assert resultat.fr == "Allemand A1 - Débutants, lancez-vous !"
+    assert resultat.is_complete
+
+
+def test_le_tiret_d_articulation_ne_reste_pas_en_bord_de_fragment():
+    resultat = split_bilingual("Deutsch A2 - Was gibt's Neues? - Allemand A2 - Quoi de neuf ?")
+
+    assert not resultat.fr.startswith("-")
+    assert not resultat.de.endswith("-")
+
+
+def test_un_titre_monolingue_a_tirets_n_est_pas_scinde_en_deux_langues():
+    """« Deutsch B1 - Lass uns Deutsch sprechen! » n'a pas de version française.
+
+    Inventer une traduction est plus grave que d'en signaler l'absence.
+    """
+    resultat = split_bilingual("Deutsch B1 - Lass uns Deutsch sprechen!")
+
+    assert resultat.fr == ""
+    assert resultat.de
+    assert resultat.needs_review
+
+
+def test_le_nom_de_la_langue_enseignee_sert_d_indice():
+    """Dans « Allemand A1 », aucun mot grammatical : le nom de la matière tranche."""
+    from apps.welante.language import detect_language
+
+    assert detect_language("Allemand A1").language == "fr"
+    assert detect_language("Deutsch A1").language == "de"

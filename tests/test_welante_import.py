@@ -31,6 +31,19 @@ def referentiels():
     call_command("seed_reference", verbosity=0)
 
 
+TOUS = ["categories", "trainers", "members", "courses", "participants"]
+
+
+def importer_avec_inscriptions(dossier) -> str:
+    """Import complet, inscriptions comprises.
+
+    Elles sont hors du parcours par défaut (voir PAR_DEFAUT) : les demander
+    explicitement est le seul moyen de couvrir leur importeur, qui reste
+    utilisable le jour où un export exploitable sera fourni.
+    """
+    return importer(dossier, only=TOUS)
+
+
 def importer(dossier, **options) -> str:
     sortie = StringIO()
     call_command(
@@ -314,14 +327,14 @@ def test_le_journal_historique_part_en_archive(exports, referentiels):
 
 def test_un_contact_inscrit_a_deux_cours_n_est_pas_dedouble(exports, referentiels):
     """28 contacts répétés dans l'export : ce sont des inscriptions, pas des doublons."""
-    importer(exports)
+    importer_avec_inscriptions(exports)
 
     assert Contact.objects.filter(email="camille@example.invalid").count() == 1
     assert Enrolment.objects.filter(participant__email="camille@example.invalid").count() == 2
 
 
 def test_un_contact_de_facturation_distinct_est_cree(exports, referentiels):
-    sortie = importer(exports)
+    sortie = importer_avec_inscriptions(exports)
 
     inscription = Enrolment.objects.get(participant__last_name="Deuxiemetest")
     assert inscription.billing_contact is not None
@@ -330,7 +343,7 @@ def test_un_contact_de_facturation_distinct_est_cree(exports, referentiels):
 
 
 def test_un_montant_qui_s_ecarte_du_tarif_devient_un_prix_impose(exports, referentiels):
-    sortie = importer(exports)
+    sortie = importer_avec_inscriptions(exports)
 
     inscription = Enrolment.objects.get(participant__last_name="Deuxiemetest")
     assert inscription.price_override == Decimal("285.00")
@@ -339,14 +352,14 @@ def test_un_montant_qui_s_ecarte_du_tarif_devient_un_prix_impose(exports, refere
 
 
 def test_une_date_en_serie_excel_devient_une_vraie_date(exports, referentiels):
-    importer(exports)
+    importer_avec_inscriptions(exports)
 
     inscription = Enrolment.objects.filter(participant__last_name="Premiertest").first()
     assert inscription.enrolled_on.isoformat() == "2026-01-01"
 
 
 def test_une_inscription_a_un_cours_inexistant_est_ecartee(exports, referentiels):
-    sortie = importer(exports)
+    sortie = importer_avec_inscriptions(exports)
 
     assert not Enrolment.objects.filter(participant__last_name="Quatriemetest").exists()
     assert "cours_introuvable" in sortie
@@ -408,3 +421,22 @@ def test_les_autres_exports_restent_importables_sans_cle(exports, referentiels, 
     )
 
     assert Subject.objects.exists()
+
+
+def test_les_inscriptions_ne_sont_pas_reprises_par_defaut(exports, referentiels):
+    """Décision de périmètre : l'export disponible ne contient que la file de
+    reconduction, qui pointe vers des cours absents. L'importer produirait des
+    centaines de rejets sans rien apporter.
+    """
+    importer(exports)
+
+    assert Course.objects.exists()
+    assert Contact.objects.exists()
+    assert not Enrolment.objects.exists()
+
+
+def test_les_inscriptions_restent_importables_sur_demande(exports, referentiels):
+    """L'importeur n'est pas supprimé : il attend un export exploitable."""
+    importer_avec_inscriptions(exports)
+
+    assert Enrolment.objects.exists()

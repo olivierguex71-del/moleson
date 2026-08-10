@@ -21,6 +21,9 @@ from apps.welante.normalizers import (
     normalize_city,
     normalize_phone,
     normalize_postal_code,
+    parse_date,
+    parse_language,
+    parse_salutation,
 )
 from apps.welante.reports import ImportReport, Severity
 
@@ -100,7 +103,6 @@ class ContactResolver:
             self.reused += 1
             return contact
 
-        langue = clean_text(donnees.get("language")).lower()[:2]
         contact, cree = Contact.objects.get_or_create(
             **self._criteres(courriel, nom, prenom, organisation),
             defaults={
@@ -108,12 +110,16 @@ class ContactResolver:
                 "last_name": nom,
                 "organisation": organisation,
                 "email": courriel,
-                "correspondence_language": langue if langue in ("fr", "de") else "fr",
+                "salutation": parse_salutation(donnees.get("salutation")),
+                "correspondence_language": parse_language(donnees.get("language")),
                 "phone": normalize_phone(donnees.get("phone")),
                 "mobile": normalize_phone(donnees.get("mobile")),
+                "birth_date": parse_date(donnees.get("birth_date")),
                 "street": clean_text(donnees.get("street")),
+                "address_complement": clean_text(donnees.get("address_complement")),
                 "postal_code": npa or "",
                 "city": normalize_city(donnees.get("city")),
+                "country": clean_text(donnees.get("country")).upper()[:2] or "CH",
                 "legacy_notes": clean_text(donnees.get("notes")),
             },
         )

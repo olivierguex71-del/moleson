@@ -14,8 +14,11 @@ explicitement signalé comme contenant des données.
 
 import csv
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from django.db import DatabaseError, transaction
 
 
 class Severity:
@@ -120,6 +123,33 @@ class ImportReport:
                     ]
                 )
         return chemin
+
+
+@contextmanager
+def ligne_isolee(rapport: ImportReport, numero: int, colonne: str = "—"):
+    """Isole le traitement d'une ligne, pour qu'un refus de la base n'arrête pas tout.
+
+    Une seule ligne trop longue ou en conflit ferait sinon échouer l'import
+    entier, sans dire laquelle — après vingt minutes de traitement. Le point de
+    sauvegarde permet de consigner l'incident et de poursuivre : à la fin, le
+    rapport liste **toutes** les lignes à corriger, pas seulement la première.
+
+    Seule la première ligne du message d'erreur est reprise : PostgreSQL place
+    les valeurs fautives dans le `DETAIL`, qui n'a pas sa place dans un rapport
+    destiné à circuler (nLPD).
+    """
+    try:
+        with transaction.atomic():
+            yield
+    except DatabaseError as exc:
+        rapport.add(
+            row=numero,
+            column=colonne,
+            code="refus_de_la_base",
+            message=str(exc).split("\n")[0].strip(),
+            severity=Severity.ERROR,
+        )
+        rapport.rows_skipped += 1
 
 
 @dataclass

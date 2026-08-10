@@ -175,3 +175,46 @@ def parse_bool(valeur: object) -> bool:
     """Lit les booléens tels que Welante les exporte (0/1, oui/non, ja/nein, x)."""
     texte = clean_text(valeur).lower()
     return texte in {"1", "true", "vrai", "oui", "ja", "x", "yes", "100%"}
+
+
+#: Intitulés de langue rencontrés dans les exports. Le mélange est réel : la
+#: colonne des intervenants dit « French » et « Allemand » dans le même champ.
+LANGUES = {
+    "fr": "fr",
+    "french": "fr",
+    "francais": "fr",
+    "français": "fr",
+    "französisch": "fr",
+    "de": "de",
+    "german": "de",
+    "allemand": "de",
+    "deutsch": "de",
+    "alemand": "de",
+}
+
+
+def parse_language(valeur: object, defaut: str = "fr") -> str:
+    """Ramène une langue de correspondance à `fr` ou `de`."""
+    texte = clean_text(valeur).lower()
+    return LANGUES.get(texte, LANGUES.get(texte[:2], defaut))
+
+
+#: Civilités telles qu'exportées, dans les deux langues.
+CIVILITES = {
+    "madame": "madam",
+    "frau": "madam",
+    "mme": "madam",
+    "monsieur": "sir",
+    "herr": "sir",
+    "m": "sir",
+    "mr": "sir",
+}
+
+
+def parse_salutation(valeur: object, defaut: str = "neutral") -> str:
+    """Lit la civilité déclarée.
+
+    Donnée fournie par la personne, jamais déduite d'un prénom. Une valeur
+    inconnue ou absente donne « sans civilité » plutôt qu'une supposition.
+    """
+    return CIVILITES.get(clean_text(valeur).lower().rstrip("."), defaut)

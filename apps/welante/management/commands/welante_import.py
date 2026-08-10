@@ -36,6 +36,18 @@ IMPORTEURS = {
     "participants": import_participants,
 }
 
+#: Exports repris par défaut.
+#:
+#: Les inscriptions en sont exclues sur décision : le seul export disponible ne
+#: contient que des lignes au statut « Copié » — la file de reconduction, que le
+#: secrétariat traite dans Welante avant la bascule — et pointe vers des cours
+#: de 2017 à 2026 absents de l'export des cours. Les importer produirait des
+#: centaines de lignes rejetées sans rien apporter.
+#:
+#: L'importeur reste disponible via `--only participants` le jour où un export
+#: complet des inscriptions et des cours de toutes les périodes sera fourni.
+PAR_DEFAUT = ["categories", "trainers", "members", "courses"]
+
 
 class Command(BaseCommand):
     help = "Importe les exports Welante (simulation par défaut, --commit pour écrire)."
@@ -46,7 +58,10 @@ class Command(BaseCommand):
             "--only",
             action="append",
             choices=list(IMPORTEURS),
-            help="N'importer que ces exports (répétable). Attention aux dépendances.",
+            help=(
+                "N'importer que ces exports (répétable). Attention aux dépendances. "
+                "Les inscriptions ne sont pas reprises par défaut."
+            ),
         )
         parser.add_argument(
             "--commit",
@@ -60,7 +75,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         dossier = Path(options["source"])
-        demandes = options["only"] or list(IMPORTEURS)
+        demandes = options["only"] or PAR_DEFAUT
         rapports = ReportSet()
 
         if erreur := self._configuration_manquante(demandes):

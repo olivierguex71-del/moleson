@@ -37,7 +37,13 @@ def normalize_header(intitule: object) -> str:
 
 @dataclass(frozen=True)
 class Column:
-    """Une colonne attendue dans un export."""
+    """Une colonne attendue dans un export.
+
+    L'ordre des alias est un **ordre de préférence** : le premier trouvé gagne.
+    Il compte, car plusieurs colonnes plausibles coexistent souvent dans un même
+    export — « Formateur/trice Bank IBANname », renseignée à 60 %, et « Banque »,
+    renseignée à 1 %.
+    """
 
     name: str
     aliases: tuple[str, ...] = ()
@@ -45,8 +51,20 @@ class Column:
     note: str = ""
 
     @property
-    def candidates(self) -> set[str]:
-        return {normalize_header(intitule) for intitule in (self.name, *self.aliases)}
+    def candidates(self) -> tuple[str, ...]:
+        """Formes normalisées des intitulés acceptés, par ordre de préférence.
+
+        Surtout pas un ensemble : Python randomise le hachage des chaînes d'un
+        processus à l'autre, si bien qu'un ensemble ferait résoudre la même
+        colonne différemment d'une exécution à la suivante. Une migration doit
+        donner le même résultat à chaque passage.
+        """
+        formes: list[str] = []
+        for intitule in (self.name, *self.aliases):
+            forme = normalize_header(intitule)
+            if forme and forme not in formes:
+                formes.append(forme)
+        return tuple(formes)
 
 
 @dataclass

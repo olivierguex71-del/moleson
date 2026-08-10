@@ -13,7 +13,7 @@ from apps.catalog.models import Subject
 from apps.welante.columns import ColumnMapping
 from apps.welante.language import split_bilingual
 from apps.welante.normalizers import clean_text, parse_category_path, parse_int
-from apps.welante.reports import ImportReport, Severity
+from apps.welante.reports import ImportReport, Severity, ligne_isolee
 from apps.welante.workbook import Workbook
 
 #: Entrées de l'écran « Catégories » qui n'en sont pas.
@@ -48,65 +48,68 @@ def import_categories(classeur: Workbook, mapping: ColumnMapping) -> ImportRepor
 
     for numero, ligne in classeur.rows():
         rapport.rows_read += 1
-        brut = clean_text(ligne[colonne_nom])
-        if not brut:
-            rapport.rows_skipped += 1
-            continue
+        with ligne_isolee(rapport, numero):
+            brut = clean_text(ligne[colonne_nom])
+            if not brut:
+                rapport.rows_skipped += 1
+                continue
 
-        nom = CORRECTIONS.get(brut, brut)
-        if nom != brut:
-            rapport.add(
-                row=numero,
-                column="name",
-                code="coquille_corrigee",
-                message="Coquille connue corrigée automatiquement.",
-            )
+            nom = CORRECTIONS.get(brut, brut)
+            if nom != brut:
+                rapport.add(
+                    row=numero,
+                    column="name",
+                    code="coquille_corrigee",
+                    message="Coquille connue corrigée automatiquement.",
+                )
 
-        comparable = _forme_comparable(nom)
-        if comparable in ETIQUETTES_MARKETING:
-            rapport.rows_skipped += 1
-            rapport.add(
-                row=numero,
-                column="name",
-                code="etiquette_marketing",
-                message="Étiquette marketing, non migrée en matière (flag sur le cours).",
-            )
-            continue
-        if comparable in TYPES_ADMINISTRATIFS:
-            rapport.rows_skipped += 1
-            rapport.add(
-                row=numero,
-                column="name",
-                code="type_administratif",
-                message="Type administratif, non migré en matière (attribut du cours).",
-            )
-            continue
+            comparable = _forme_comparable(nom)
+            if comparable in ETIQUETTES_MARKETING:
+                rapport.rows_skipped += 1
+                rapport.add(
+                    row=numero,
+                    column="name",
+                    code="etiquette_marketing",
+                    message="Étiquette marketing, non migrée en matière (flag sur le cours).",
+                )
+                continue
+            if comparable in TYPES_ADMINISTRATIFS:
+                rapport.rows_skipped += 1
+                rapport.add(
+                    row=numero,
+                    column="name",
+                    code="type_administratif",
+                    message="Type administratif, non migré en matière (attribut du cours).",
+                )
+                continue
 
-        parent_nom, enfant_nom = parse_category_path(nom)
-        if colonne_parent and (declare := clean_text(ligne[colonne_parent])):
-            parent_nom, enfant_nom = declare, nom
+            parent_nom, enfant_nom = parse_category_path(nom)
+            if colonne_parent and (declare := clean_text(ligne[colonne_parent])):
+                parent_nom, enfant_nom = declare, nom
 
-        parent = None
-        if enfant_nom:
-            parent = _creer_matiere(parent_nom, None, None, rapport, numero)
+            parent = None
+            if enfant_nom:
+                parent = _creer_matiere(parent_nom, None, None, rapport, numero)
 
-        nom_final = enfant_nom or parent_nom
-        code_web = clean_text(ligne[colonne_code]) if colonne_code else ""
-        if not code_web:
-            rapport.add(
-                row=numero,
-                column="web_code",
-                code="web_code_absent",
-                message="Sans Web-Code : un identifiant est dérivé du nom, l'URL du site changera.",
-                severity=Severity.REVIEW,
-            )
+            nom_final = enfant_nom or parent_nom
+            code_web = clean_text(ligne[colonne_code]) if colonne_code else ""
+            if not code_web:
+                rapport.add(
+                    row=numero,
+                    column="web_code",
+                    code="web_code_absent",
+                    message=(
+                        "Sans Web-Code : un identifiant est dérivé du nom, l'URL du site changera."
+                    ),
+                    severity=Severity.REVIEW,
+                )
 
-        matiere = _creer_matiere(nom_final, code_web, parent, rapport, numero)
-        if colonne_position and (position := parse_int(ligne[colonne_position])) is not None:
-            matiere.position = position
-            matiere.save(update_fields=["position"])
+            matiere = _creer_matiere(nom_final, code_web, parent, rapport, numero)
+            if colonne_position and (position := parse_int(ligne[colonne_position])) is not None:
+                matiere.position = position
+                matiere.save(update_fields=["position"])
 
-        rapport.rows_imported += 1
+            rapport.rows_imported += 1
 
     return rapport
 

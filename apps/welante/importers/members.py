@@ -8,10 +8,15 @@ Deux corrections d'anti-patterns Welante se jouent ici :
 - le champ **Notes**, journal de dix ans en texte concaténé, part en archive de
   lecture seule ; les notes futures seront horodatées et attribuées.
 
-Le mapping des anciennes catégories reste partiellement ouvert : « Mitarbeiter »
-correspond au rôle collaborateur de Moléson, mais « Vorstandsmitglied » (comité)
-n'a pas d'équivalent établi. Plutôt que de deviner, ces lignes sont importées
-sans adhésion et signalées.
+Troisième particularité, révélée par l'inspection du fichier réel : le type
+d'adhésion n'est pas une colonne à valeurs mais **trois colonnes cochées** —
+« Membre supporter », « Vorstand », « Mitarbeiter ». Chacune répond à un concept
+différent de Moléson : la première est une adhésion, la troisième un rôle du
+contact, et la deuxième n'a pas d'équivalent établi. Les lire comme une colonne
+unique aurait importé 122 membres sans aucune adhésion.
+
+Le mapping du comité reste ouvert : plutôt que de deviner entre « membre actif »
+et « membre bienfaiteur », ces lignes sont importées sans adhésion et signalées.
 """
 
 from datetime import date
@@ -25,27 +30,14 @@ from apps.communications.models import (
 from apps.contacts.models import Membership, MembershipType
 from apps.welante.columns import ColumnMapping, RowValues, normalize_header
 from apps.welante.importers.base import ContactResolver
-from apps.welante.normalizers import clean_text, parse_date
-from apps.welante.reports import ImportReport, Severity
+from apps.welante.normalizers import clean_text, parse_bool, parse_date
+from apps.welante.reports import ImportReport, Severity, ligne_isolee
 from apps.welante.sources import PREFIXES_CAMPAGNE
 from apps.welante.workbook import Workbook
 
-#: Correspondances certaines entre catégories Welante et types d'adhésion Moléson.
-TYPES_CONNUS = {
-    "supporter-mitglied": "supporter",
-    "supporter": "supporter",
-    "membre supporter": "supporter",
-    "aktivmitglied": "actif",
-    "membre actif": "actif",
-    "gönnermitglied": "bienfaiteur",
-    "membre bienfaiteur": "bienfaiteur",
-}
-
-#: Catégories qui désignent un rôle et non une adhésion.
-ROLES = {"mitarbeiter", "collaborateur", "collaboratrice", "mitarbeiterin"}
-
-#: Catégories dont la correspondance n'est pas tranchée (cf. analyse, section 2).
-A_ARBITRER = {"vorstandsmitglied", "comité", "vorstand"}
+#: Date de début retenue quand l'export ne dit pas depuis quand la personne
+#: adhère. Volontairement ancienne et signalée, pour être corrigée.
+DEBUT_INCONNU = date(2020, 1, 1)
 
 
 def import_members(classeur: Workbook, mapping: ColumnMapping) -> ImportReport:
@@ -76,39 +68,44 @@ def import_members(classeur: Workbook, mapping: ColumnMapping) -> ImportReport:
 
     for numero, ligne in classeur.rows():
         rapport.rows_read += 1
+        with ligne_isolee(rapport, numero):
+            champs = RowValues(mapping, ligne)
 
-        champs = RowValues(mapping, ligne)
+            contact = resolveur.resolve(
+                row=numero,
+                donnees={
+                    "last_name": champs.get("last_name"),
+                    "first_name": champs.get("first_name"),
+                    "email": champs.get("email"),
+                    "street": champs.get("street"),
+                    "postal_code": champs.get("postal_code"),
+                    "city": champs.get("city"),
+                    "language": champs.get("language"),
+                    "salutation": champs.get("salutation"),
+                    "organisation": champs.get("organisation"),
+                    "birth_date": champs.get("birth_date"),
+                    "address_complement": champs.get("address_complement"),
+                    "country": champs.get("country"),
+                    "notes": champs.get("notes"),
+                },
+            )
+            if contact is None:
+                rapport.rows_skipped += 1
+                continue
 
-        contact = resolveur.resolve(
-            row=numero,
-            donnees={
-                "last_name": champs.get("last_name"),
-                "first_name": champs.get("first_name"),
-                "email": champs.get("email"),
-                "street": champs.get("street"),
-                "postal_code": champs.get("postal_code"),
-                "city": champs.get("city"),
-                "language": champs.get("language"),
-                "notes": champs.get("notes"),
-            },
-        )
-        if contact is None:
-            rapport.rows_skipped += 1
-            continue
+            _rattacher_adhesion(
+                contact=contact,
+                champs=champs,
+                depuis=parse_date(champs.get("since")),
+                rapport=rapport,
+                numero=numero,
+            )
 
-        _rattacher_adhesion(
-            contact=contact,
-            categorie=champs.get("membership_type") or champs.get("function"),
-            depuis=parse_date(ligne[mapping.get("since")]) if mapping.get("since") else None,
-            rapport=rapport,
-            numero=numero,
-        )
+            for intitule in campagnes:
+                if clean_text(ligne[intitule]):
+                    _enregistrer_envoi(contact, intitule)
 
-        for intitule in campagnes:
-            if clean_text(ligne[intitule]):
-                _enregistrer_envoi(contact, intitule)
-
-        rapport.rows_imported += 1
+            rapport.rows_imported += 1
 
     return rapport
 
@@ -119,55 +116,47 @@ def _colonnes_de_campagne(headers: list[str]) -> list[str]:
     ]
 
 
-def _rattacher_adhesion(*, contact, categorie: str, depuis, rapport, numero) -> None:
-    forme = clean_text(categorie).lower()
-    if not forme:
-        return
+def _rattacher_adhesion(*, contact, champs, depuis, rapport, numero) -> None:
+    """Traduit les colonnes cochées en adhésion et en rôle.
 
-    if forme in ROLES:
+    Les trois colonnes ne sont pas exclusives : quelqu'un peut être à la fois
+    membre supporter et collaborateur. Chacune est donc traitée pour elle-même.
+    """
+    if parse_bool(champs.get("is_staff")):
         # Chez Moléson, collaborateur est un rôle du contact, pas un type
-        # d'adhésion : c'est ce qui empêche son rabais de se cumuler.
+        # d'adhésion : c'est ce qui empêche son rabais de se cumuler avec celui
+        # d'une adhésion.
         contact.is_collaborator = True
         contact.save(update_fields=["is_collaborator"])
         rapport.add(
             row=numero,
-            column="membership_type",
+            column="is_staff",
             code="role_collaborateur",
-            message="Catégorie reconnue comme rôle collaborateur, non comme adhésion.",
+            message="Colonne « Mitarbeiter » cochée : rôle collaborateur, non adhésion.",
         )
-        return
 
-    if forme in A_ARBITRER:
+    if parse_bool(champs.get("is_board")):
         rapport.add(
             row=numero,
-            column="membership_type",
+            column="is_board",
             code="categorie_a_arbitrer",
             message=(
-                "Catégorie « comité » sans équivalent établi : contact importé sans "
-                "adhésion, correspondance à trancher."
+                "Colonne « Vorstand » cochée, sans équivalent établi : contact importé "
+                "sans adhésion de comité, correspondance à trancher."
             ),
             severity=Severity.REVIEW,
         )
+
+    if not parse_bool(champs.get("is_supporter")):
         return
 
-    code = TYPES_CONNUS.get(forme)
-    if code is None:
-        rapport.add(
-            row=numero,
-            column="membership_type",
-            code="categorie_inconnue",
-            message="Catégorie d'adhésion non reconnue : contact importé sans adhésion.",
-            severity=Severity.REVIEW,
-        )
-        return
-
-    type_adhesion = MembershipType.objects.filter(code=code).first()
+    type_adhesion = MembershipType.objects.filter(code="supporter").first()
     if type_adhesion is None:
         rapport.add(
             row=numero,
-            column="membership_type",
+            column="is_supporter",
             code="type_absent",
-            message=f"Type d'adhésion « {code} » absent : lancer `seed_reference`.",
+            message="Type d'adhésion « supporter » absent : lancer `seed_reference`.",
             severity=Severity.ERROR,
         )
         return
@@ -176,14 +165,16 @@ def _rattacher_adhesion(*, contact, categorie: str, depuis, rapport, numero) -> 
         return
 
     Membership.objects.create(
-        contact=contact, type=type_adhesion, starts_on=depuis or date(2020, 1, 1)
+        contact=contact, type=type_adhesion, starts_on=depuis or DEBUT_INCONNU
     )
     if depuis is None:
         rapport.add(
             row=numero,
             column="since",
             code="date_adhesion_inconnue",
-            message="Date d'adhésion absente : début fixé au 01.01.2020, à corriger.",
+            message=(
+                f"Date d'adhésion absente : début fixé au {DEBUT_INCONNU:%d.%m.%Y}, à corriger."
+            ),
             severity=Severity.REVIEW,
         )
 

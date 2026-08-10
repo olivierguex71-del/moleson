@@ -120,10 +120,10 @@ def ecrire_intervenants(dossier: Path) -> Path:
                 "NPA": "1700",
                 "Localité": "Fribourg",
                 "Langue": "fr",
-                "IBAN": "CH93 0076 2011 6238 5295 7",  # espacé
-                "Bank IBANname": "Banque fictive",
-                "No AVS": "756.0000.0000.00",
-                "Renonciation AVS": "non",
+                "Formateur/trice Bank IBAN": "CH93 0076 2011 6238 5295 7",  # espacé
+                "Formateur/trice Bank IBANname": "Banque fictive",
+                "Formateur/trice AHV-Nr.": "756.0000.0000.00",
+                "Formateur/trice Renonciation AVS": "non",
             },
             {
                 "Nom": "Zweitest",
@@ -132,10 +132,10 @@ def ecrire_intervenants(dossier: Path) -> Path:
                 "NPA": "3186",
                 "Localité": "Düdingen",
                 "Langue": "de",
-                "IBAN": IBAN_VALIDE,  # collé
-                "Bank IBANname": "POFICHBEXXX",  # un BIC dans la colonne du nom
-                "No AVS": "",
-                "Renonciation AVS": "ja",
+                "Formateur/trice Bank IBAN": IBAN_VALIDE,  # collé
+                "Formateur/trice Bank IBANname": "POFICHBEXXX",  # un BIC dans la colonne du nom
+                "Formateur/trice AHV-Nr.": "",
+                "Formateur/trice Renonciation AVS": "ja",
             },
             {
                 "Nom": "Troistest",
@@ -144,10 +144,10 @@ def ecrire_intervenants(dossier: Path) -> Path:
                 "NPA": "1630",
                 "Localité": "Bulle",
                 "Langue": "fr",
-                "IBAN": IBAN_FAUX,  # clé de contrôle fausse
-                "Bank IBANname": "",
-                "No AVS": "",
-                "Renonciation AVS": "",
+                "Formateur/trice Bank IBAN": IBAN_FAUX,  # clé de contrôle fausse
+                "Formateur/trice Bank IBANname": "",
+                "Formateur/trice AHV-Nr.": "",
+                "Formateur/trice Renonciation AVS": "",
             },
             {
                 "Nom": "Quatretest",
@@ -156,10 +156,10 @@ def ecrire_intervenants(dossier: Path) -> Path:
                 "NPA": "1700",
                 "Localité": "Villars -sur-Glâne",  # coquille d'espacement
                 "Langue": "",
-                "IBAN": "",  # absent
-                "Bank IBANname": "",
-                "No AVS": "",
-                "Renonciation AVS": "",
+                "Formateur/trice Bank IBAN": "",  # absent
+                "Formateur/trice Bank IBANname": "",
+                "Formateur/trice AHV-Nr.": "",
+                "Formateur/trice Renonciation AVS": "",
             },
         ]
     ).to_excel(chemin, index=False)
@@ -257,15 +257,17 @@ def ecrire_membres(dossier: Path) -> Path:
         "NPA",
         "Localité",
         "Langue",
-        "Mitglieder",
-        "Depuis",
+        "Membre supporter",
+        "Vorstand",
+        "Mitarbeiter",
+        "Créé",
         "Notes",
         "Programmversand Herbst 2019",
         "Programmversand Frühling 2020",
     ]
     feuille.append(entetes)
     # Deuxième ligne d'en-tête partielle, à sauter.
-    feuille.append(["", "", "", "", "", "", "Mitgliedschaft", "", "", "", ""])
+    feuille.append(["", "", "", "", "", "", "Mitgliedschaft", "", "", "", "", "", ""])
 
     feuille.append(
         [
@@ -275,7 +277,9 @@ def ecrire_membres(dossier: Path) -> Path:
             "1700",
             "Fribourg",
             "fr",
-            "Supporter-Mitglied",
+            "1",
+            "",
+            "",
             "01.01.2020",
             "Note historique reprise en archive.",
             "x",
@@ -290,7 +294,9 @@ def ecrire_membres(dossier: Path) -> Path:
             "3186",
             "Düdingen",
             "de",
-            "Vorstandsmitglied",  # correspondance non tranchée
+            "",
+            "1",  # comité : correspondance non tranchée
+            "",
             "",
             "",
             "",
@@ -305,7 +311,9 @@ def ecrire_membres(dossier: Path) -> Path:
             "1630",
             "Bulle",
             "fr",
-            "Mitarbeiter",  # un rôle, pas une adhésion
+            "",
+            "",
+            "1",  # un rôle, pas une adhésion
             "01.01.2021",
             "",
             "",

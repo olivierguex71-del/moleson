@@ -15,7 +15,7 @@ from apps.contacts.models import Trainer
 from apps.welante.columns import ColumnMapping, RowValues
 from apps.welante.importers.base import ContactResolver
 from apps.welante.normalizers import normalize_iban_value, parse_bool
-from apps.welante.reports import ImportReport, Severity
+from apps.welante.reports import ImportReport, Severity, ligne_isolee
 from apps.welante.workbook import Workbook
 
 
@@ -40,75 +40,80 @@ def import_trainers(classeur: Workbook, mapping: ColumnMapping) -> ImportReport:
 
     for numero, ligne in classeur.rows():
         rapport.rows_read += 1
+        with ligne_isolee(rapport, numero):
+            champs = RowValues(mapping, ligne)
 
-        champs = RowValues(mapping, ligne)
-
-        contact = resolveur.resolve(
-            row=numero,
-            donnees={
-                "last_name": champs.get("last_name"),
-                "first_name": champs.get("first_name"),
-                "email": champs.get("email"),
-                "phone": champs.get("phone"),
-                "mobile": champs.get("mobile"),
-                "street": champs.get("street"),
-                "postal_code": champs.get("postal_code"),
-                "city": champs.get("city"),
-                "language": champs.get("language"),
-            },
-        )
-        if contact is None:
-            rapport.rows_skipped += 1
-            continue
-
-        iban, motif = normalize_iban_value(champs.get("iban"))
-        if motif and motif != "absent":
-            rapport.add(
+            contact = resolveur.resolve(
                 row=numero,
-                column="iban",
-                code=f"iban_{motif}",
-                message="IBAN écarté : clé de contrôle ou forme invalide. À ressaisir.",
-                severity=Severity.REVIEW,
+                donnees={
+                    "last_name": champs.get("last_name"),
+                    "first_name": champs.get("first_name"),
+                    "email": champs.get("email"),
+                    "phone": champs.get("phone"),
+                    "mobile": champs.get("mobile"),
+                    "street": champs.get("street"),
+                    "postal_code": champs.get("postal_code"),
+                    "city": champs.get("city"),
+                    "language": champs.get("language"),
+                    "salutation": champs.get("salutation"),
+                    "organisation": champs.get("organisation"),
+                    "birth_date": champs.get("birth_date"),
+                    "address_complement": champs.get("address_complement"),
+                    "country": champs.get("country"),
+                },
             )
+            if contact is None:
+                rapport.rows_skipped += 1
+                continue
 
-        banque = champs.get("bank")
-        bic = banque if _est_un_bic(banque) else ""
-        if bic:
-            rapport.add(
-                row=numero,
-                column="bank",
-                code="bic_dans_nom_de_banque",
-                message="La colonne « Bank IBANname » contenait un BIC : rangé comme tel.",
+            iban, motif = normalize_iban_value(champs.get("iban"))
+            if motif and motif != "absent":
+                rapport.add(
+                    row=numero,
+                    column="iban",
+                    code=f"iban_{motif}",
+                    message="IBAN écarté : clé de contrôle ou forme invalide. À ressaisir.",
+                    severity=Severity.REVIEW,
+                )
+
+            banque = champs.get("bank")
+            bic = banque if _est_un_bic(banque) else ""
+            if bic:
+                rapport.add(
+                    row=numero,
+                    column="bank",
+                    code="bic_dans_nom_de_banque",
+                    message="La colonne « Bank IBANname » contenait un BIC : rangé comme tel.",
+                )
+
+            formateur, cree = Trainer.objects.get_or_create(
+                contact=contact,
+                defaults={
+                    "iban": iban or "",
+                    "bic": bic,
+                    "bank_name": "" if bic else banque,
+                    "ahv_number": champs.get("ahv_number"),
+                    "ahv_waiver": parse_bool(champs.get("ahv_waiver")),
+                },
             )
+            if not cree:
+                rapport.add(
+                    row=numero,
+                    column="last_name",
+                    code="formateur_deja_importe",
+                    message="Un profil de formateur existait déjà pour ce contact : ligne ignorée.",
+                )
+                rapport.rows_skipped += 1
+                continue
 
-        formateur, cree = Trainer.objects.get_or_create(
-            contact=contact,
-            defaults={
-                "iban": iban or "",
-                "bic": bic,
-                "bank_name": "" if bic else banque,
-                "ahv_number": champs.get("ahv_number"),
-                "ahv_waiver": parse_bool(champs.get("ahv_waiver")),
-            },
-        )
-        if not cree:
-            rapport.add(
-                row=numero,
-                column="last_name",
-                code="formateur_deja_importe",
-                message="Un profil de formateur existait déjà pour ce contact : ligne ignorée.",
-            )
-            rapport.rows_skipped += 1
-            continue
+            if formateur.ahv_number:
+                rapport.add(
+                    row=numero,
+                    column="ahv_number",
+                    code="avs_chiffre",
+                    message="Numéro AVS chiffré au repos ; accès réservé et exclu des exports.",
+                )
 
-        if formateur.ahv_number:
-            rapport.add(
-                row=numero,
-                column="ahv_number",
-                code="avs_chiffre",
-                message="Numéro AVS chiffré au repos ; accès réservé et exclu des exports.",
-            )
-
-        rapport.rows_imported += 1
+            rapport.rows_imported += 1
 
     return rapport
