@@ -58,6 +58,13 @@ select = [
 ]
 ignore = [
     "RUF012",  # les attributs de classe Django (Meta, list_display…) ne sont pas annotés ClassVar
+    # Moléson écrit en français typographique : signe moins « − », multiplication
+    # « × », espace insécable avant « % » et « : ». Ces règles traquent les
+    # homoglyphes trompeurs dans du code anglophone ; ici ce sont les caractères
+    # corrects, et les remplacer abîmerait des textes destinés à être lus.
+    "RUF001",
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.lint.per-file-ignores]

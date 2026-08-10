@@ -1,9 +1,12 @@
 """Briques transverses des modèles Moléson."""
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.translation import get_language
 from django.utils.translation import gettext_lazy as _
+
+from apps.core.validators import validate_swiss_postal_code
 
 
 def content_language(language: str | None = None) -> str:
@@ -25,6 +28,55 @@ class TimeStampedModel(models.Model):
 
     class Meta:
         abstract = True
+
+
+class SwissAddressMixin(models.Model):
+    """Adresse en champs structurés, découpée comme l'exige la QR-facture suisse.
+
+    Welante stockait un « format de l'adresse » configurable — symptôme d'une
+    adresse gardée en texte libre. Ici chaque composant a sa colonne : la mise en
+    forme se déduit, et le bloc `StreetName` / `BuildingNumber` / `PostalCode` /
+    `TownName` part tel quel vers Accounto.
+    """
+
+    street = models.CharField(_("rue"), max_length=120, blank=True)
+    house_number = models.CharField(_("numéro"), max_length=20, blank=True)
+    address_complement = models.CharField(_("complément d'adresse"), max_length=120, blank=True)
+    postal_code = models.CharField(_("NPA"), max_length=10, blank=True)
+    city = models.CharField(_("localité"), max_length=120, blank=True)
+    country = models.CharField(_("pays"), max_length=2, default="CH")
+
+    class Meta:
+        abstract = True
+
+    @property
+    def has_address(self) -> bool:
+        return bool(self.postal_code and self.city)
+
+    @property
+    def street_line(self) -> str:
+        return " ".join(part for part in (self.street, self.house_number) if part)
+
+    @property
+    def locality_line(self) -> str:
+        return " ".join(part for part in (self.postal_code, self.city) if part)
+
+    def address_lines(self) -> list[str]:
+        """Adresse prête à imprimer, une entrée par ligne, sans ligne vide."""
+        lignes = [self.street_line, self.address_complement, self.locality_line]
+        if self.country and self.country != "CH":
+            lignes.append(self.country)
+        return [ligne for ligne in lignes if ligne]
+
+    def clean(self):
+        super().clean()
+        # Le NPA n'est contrôlé comme suisse que pour une adresse suisse : un
+        # participant frontalier a un code postal étranger, parfaitement valide.
+        if self.country == "CH" and self.postal_code:
+            try:
+                validate_swiss_postal_code(self.postal_code)
+            except ValidationError as exc:
+                raise ValidationError({"postal_code": exc}) from exc
 
 
 class TranslatedFieldsMixin:

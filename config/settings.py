@@ -61,6 +61,10 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "apps.core",
     "apps.api",
+    "apps.contacts",
+    "apps.catalog",
+    "apps.enrolments",
+    "apps.communications",
 ]
 
 MIDDLEWARE = [
