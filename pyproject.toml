@@ -1,0 +1,65 @@
+[project]
+name = "moleson"
+version = "0.1.0"
+description = "Plateforme de gestion de cours de l'Université populaire du canton de Fribourg"
+requires-python = ">=3.13"
+dependencies = [
+    "django>=5.2,<5.3",
+    "django-ninja>=1.4",
+    "psycopg[binary]>=3.2",
+    "django-environ>=0.11",
+    "django-unfold>=0.40,<1.0",
+    "whitenoise>=6.8",
+    "gunicorn>=23.0",
+    "cryptography>=44.0",
+    "weasyprint>=63.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "pytest-cov>=6.0",
+    "factory-boy>=3.3",
+    "ruff>=0.9",
+]
+
+# Moléson est une application, pas une bibliothèque distribuable :
+# uv ne doit pas tenter de la construire ni de l'installer.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "--strict-markers --strict-config"
+
+[tool.coverage.run]
+source = ["apps", "config"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle
+    "F",      # pyflakes
+    "I",      # isort
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "DJ",     # flake8-django
+    "S",      # flake8-bandit
+    "C4",     # flake8-comprehensions
+    "RUF",    # règles propres à ruff
+]
+ignore = [
+    "RUF012",  # les attributs de classe Django (Meta, list_display…) ne sont pas annotés ClassVar
+]
+
+[tool.ruff.lint.per-file-ignores]
+# assert est l'idiome normal de pytest
+"tests/*" = ["S101"]

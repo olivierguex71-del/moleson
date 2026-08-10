@@ -8,6 +8,7 @@ data/*
 # Secrets & environnement
 .env
 .env.*
+!.env.example
 
 # Dépendances & artefacts
 node_modules/
@@ -16,6 +17,15 @@ __pycache__/
 .venv/
 dist/
 build/
+staticfiles/
+mediafiles/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Réglages Claude Code propres à une machine
+.claude/settings.local.json
 
 # Système
 .DS_Store

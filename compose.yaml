@@ -1,0 +1,49 @@
+# Environnement de développement Moléson.
+#
+#   cp .env.example .env
+#   docker compose up
+#
+# Ce même fichier alimente le devcontainer (voir .devcontainer/devcontainer.json),
+# de sorte qu'une machine neuve n'a besoin que de Docker et de ce dépôt.
+
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-moleson}
+      POSTGRES_USER: ${POSTGRES_USER:-moleson}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moleson}
+      # Collation neutre : le tri applicatif se fait côté Django, pas côté locale.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Exposé pour brancher un client SQL local ; inutile à l'application.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moleson} -d ${POSTGRES_DB:-moleson}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: dev
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-moleson}:${POSTGRES_PASSWORD:-moleson}@db:5432/${POSTGRES_DB:-moleson}
+    volumes:
+      # Le code vit sur l'hôte : édition immédiate, rechargement automatique.
+      - .:/workspace
+      # …sauf l'environnement virtuel, qui reste celui de l'image.
+      - /workspace/.venv
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

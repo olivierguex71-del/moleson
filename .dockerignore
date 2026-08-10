@@ -1,0 +1,26 @@
+# Données personnelles — ne doivent jamais entrer dans une image (nLPD)
+data/
+*.xlsx
+*.xls
+
+# Secrets
+.env
+.env.*
+
+# Artefacts locaux
+.git/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+staticfiles/
+mediafiles/
+.DS_Store
+
+# Documentation et outillage inutiles à l'exécution
+docs/
+.devcontainer/
+.github/

@@ -1,0 +1,22 @@
+# Reverse proxy et terminaison TLS.
+# Caddy obtient et renouvelle seul le certificat Let's Encrypt : aucune tâche
+# certbot à maintenir sur le VPS.
+
+{$MOLESON_DOMAIN} {
+	encode zstd gzip
+
+	# X-Forwarded-Proto permet à Django de savoir que la requête d'origine est
+	# en HTTPS (voir SECURE_PROXY_SSL_HEADER dans config/settings.py).
+	reverse_proxy app:8000
+
+	header {
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Content-Type-Options nosniff
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}
