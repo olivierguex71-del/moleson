@@ -1,0 +1,21 @@
+# Données personnelles — ne JAMAIS commiter (nLPD)
+data/*
+!data/README.md
+*.xlsx
+*.xls
+*_Facture_*.pdf
+
+# Secrets & environnement
+.env
+.env.*
+
+# Dépendances & artefacts
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+dist/
+build/
+
+# Système
+.DS_Store
