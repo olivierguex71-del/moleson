@@ -111,7 +111,16 @@ def test_les_etiquettes_marketing_ne_deviennent_pas_des_matieres(exports, refere
     importer(exports, only=["categories"])
 
     assert not Subject.objects.filter(name_fr__iexact="Newsletter").exists()
-    assert not Subject.objects.filter(name_fr__iexact="ORS").exists()
+
+
+def test_un_type_administratif_reste_une_matiere_avec_ses_enfants(exports, referentiels):
+    """« ORS » porte deux sous-catégories linguistiques : l'écarter les rendrait
+    orphelines. Le type administratif du cours se déduit ailleurs.
+    """
+    importer(exports, only=["categories"])
+
+    ors = Subject.objects.get(name_fr="ORS")
+    assert [enfant.name_fr for enfant in ors.children.all()] == ["ORS - Français"]
 
 
 def test_la_coquille_connue_est_corrigee(exports, referentiels):
@@ -126,15 +135,26 @@ def test_le_web_code_devient_le_slug(exports, referentiels):
     """Conserver l'identifiant public préserve les URL du site et leur référencement."""
     importer(exports, only=["categories"])
 
-    assert Subject.objects.filter(slug="cours-de-langues").exists()
+    # Le Web-Code de Welante est un identifiant hexadécimal opaque : c'est lui
+    # qui figure dans les URL du site, donc lui qu'il faut conserver tel quel.
+    assert Subject.objects.filter(slug="163230cb9406c7").exists()
 
 
 def test_la_hierarchie_a_deux_niveaux_est_reconstruite(exports, referentiels):
     importer(exports, only=["categories"])
 
-    italien = Subject.objects.get(slug="italien")
+    italien = Subject.objects.get(slug="15747fded57fe3")
     assert italien.parent is not None
     assert italien.parent.name_fr == "Cours de langues"
+    # Le nom de la sous-catégorie est lui aussi bilingue et concaténé.
+    assert italien.name_de == "Italienisch"
+
+
+def test_une_categorie_masquee_sur_le_site_est_importee_inactive(exports, referentiels):
+    importer(exports, only=["categories"])
+
+    assert Subject.objects.get(name_fr="Grec").is_active is False
+    assert Subject.objects.get(name_fr="Cours de langues").is_active is True
 
 
 # --- Cours -----------------------------------------------------------------
@@ -440,3 +460,56 @@ def test_les_inscriptions_restent_importables_sur_demande(exports, referentiels)
     importer_avec_inscriptions(exports)
 
     assert Enrolment.objects.exists()
+
+
+def test_les_etiquettes_sont_reconnues_au_singulier_comme_au_pluriel(exports, referentiels):
+    """L'écran des catégories dit « Highlight », les cours citent « Highlights ».
+
+    Un intitulé non reconnu partirait en « matière inconnue » et le cours
+    perdrait son étiquette sans que personne ne s'en aperçoive.
+    """
+    from apps.welante.course_flags import ETIQUETTES
+
+    assert ETIQUETTES["highlight"] == ETIQUETTES["highlights"]
+    assert ETIQUETTES["newsletter"] == ETIQUETTES["newsletters"]
+
+
+def test_une_coquille_corrigee_reste_retrouvable_par_les_cours(exports, referentiels):
+    """La correction s'applique des deux côtés : corriger l'intitulé seulement à
+    l'import des catégories rendrait la matière introuvable pour les cours.
+    """
+    from apps.welante.corrections import corriger_intitule
+
+    importer(exports, only=["categories"])
+
+    intitule_source = "Informatique & Technonolgie"
+    assert Subject.objects.filter(name_fr=corriger_intitule(intitule_source)).exists()
+    assert not Subject.objects.filter(name_fr=intitule_source).exists()
+
+
+def test_une_categorie_hierarchique_porte_le_type_administratif(exports, referentiels):
+    """Les cours ORS s'écrivent « ORS > ORS - Français » : le régime se lit sur le
+    premier niveau, la matière sur le dernier, et les deux doivent s'appliquer.
+    """
+    from apps.catalog.models import AdministrativeType
+    from apps.welante.course_flags import appliquer_categories
+
+    importer(exports, only=["categories", "courses"])
+    cours = Course.objects.get(code="2026-T4-441001-FR")
+
+    matieres, inconnues = appliquer_categories(cours, ["ORS > ORS - Français"])
+
+    cours.refresh_from_db()
+    assert cours.administrative_type == AdministrativeType.ORS
+    assert [m.name_fr for m in matieres] == ["ORS - Français"]
+    assert inconnues == []
+
+
+def test_les_cles_de_correspondance_sont_normalisees_et_non_transcrites():
+    """« Cours Privés & Entreprises » : l'esperluette et l'accent disparaissent au
+    calcul. Transcrire les clés à la main rendait la correspondance inatteignable.
+    """
+    from apps.welante.course_flags import TYPES, _forme_comparable
+
+    assert _forme_comparable("Cours Privés & Entreprises") in TYPES
+    assert _forme_comparable("cours prives et entreprises") in TYPES

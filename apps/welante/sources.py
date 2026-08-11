@@ -42,7 +42,11 @@ CATEGORIES = Source(
     ),
     columns=[
         Column("name", ("Catégorie", "Kategorie", "Nom", "Name", "Bezeichnung"), required=True),
+        # L'export met la sous-catégorie dans une colonne sans en-tête, que
+        # pandas nomme « Unnamed: 1 » : le parent n'est écrit que sur sa ligne.
+        Column("child_name", ("Unnamed: 1", "Sous-catégorie", "Unterkategorie")),
         Column("web_code", ("Web-Code", "Webcode", "Web Code", "Code web")),
+        Column("show_on_web", ("Montrer sur Internet", "Im Internet zeigen")),
         Column("parent", ("Parent", "Übergeordnet", "Catégorie parente", "Oberkategorie")),
         Column("position", ("Ordre", "Position", "Reihenfolge", "Sortierung")),
     ],

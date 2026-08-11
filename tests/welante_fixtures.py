@@ -26,25 +26,58 @@ IBAN_FAUX = "CH9300762011623852958"
 
 
 def ecrire_categories(dossier: Path) -> Path:
-    chemin = dossier / "Cate_gories_vhsfr_2026.xlsx"
+    """Arborescence telle que Welante l'exporte : le parent n'est écrit que sur
+    sa ligne, les sous-catégories suivent dans une colonne sans en-tête.
+    """
+    chemin = dossier / "Catégories_vhsfr_2026.xlsx"
     pd.DataFrame(
         [
-            {"Catégorie": "Cours de langues", "Web-Code": "cours-de-langues", "Ordre": "1"},
             {
-                "Catégorie": "Cours de langues > Italienisch / Italien",
-                "Web-Code": "italien",
-                "Ordre": "2",
+                "Catégorie": "Cours de langues",
+                "Unnamed: 1": "",
+                "Web-Code": "163230cb9406c7",
+                "Montrer sur Internet": "X",
+            },
+            {
+                "Catégorie": "",
+                "Unnamed: 1": "Italienisch / Italien",
+                "Web-Code": "15747fded57fe3",
+                "Montrer sur Internet": "X",
+            },
+            {
+                "Catégorie": "",
+                "Unnamed: 1": "Grec",
+                "Web-Code": "15747fded2070e",
+                "Montrer sur Internet": "",
             },
             # Coquille présente dans les données sources.
             {
                 "Catégorie": "Informatique & Technonolgie",
-                "Web-Code": "informatique",
-                "Ordre": "3",
+                "Unnamed: 1": "",
+                "Web-Code": "165560b0f24428",
+                "Montrer sur Internet": "X",
             },
-            # Étiquette marketing mêlée aux matières.
-            {"Catégorie": "Newsletter", "Web-Code": "newsletter", "Ordre": "4"},
-            # Type administratif mêlé aux matières.
-            {"Catégorie": "ORS", "Web-Code": "ors", "Ordre": "5"},
+            # Type administratif portant lui-même des sous-catégories : l'écarter
+            # rendrait ses enfants orphelins.
+            {
+                "Catégorie": "ORS",
+                "Unnamed: 1": "",
+                "Web-Code": "1654b350703690",
+                "Montrer sur Internet": "X",
+            },
+            {
+                "Catégorie": "",
+                "Unnamed: 1": "ORS - Français",
+                "Web-Code": "1654b3770d8981",
+                "Montrer sur Internet": "X",
+            },
+            # Étiquette marketing : écartée, elle devient un booléen du cours.
+            {
+                "Catégorie": "Newsletter",
+                "Unnamed: 1": "",
+                "Web-Code": "16a0c5bf21a282",
+                "Montrer sur Internet": "",
+            },
         ]
     ).to_excel(chemin, index=False)
     return chemin
