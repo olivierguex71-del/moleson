@@ -64,6 +64,71 @@ def validate_iban(value: str) -> None:
         )
 
 
+#: Table du calcul de clé « modulo 10 récursif » (norme SIX pour la référence QRR).
+#: Chaque chiffre lu fait passer d'un report au suivant ; le complément à dix du
+#: report final donne le chiffre de contrôle.
+_REPORTS_MOD10 = (
+    (0, 9, 4, 6, 8, 2, 7, 1, 3, 5),
+    (9, 4, 6, 8, 2, 7, 1, 3, 5, 0),
+    (4, 6, 8, 2, 7, 1, 3, 5, 0, 9),
+    (6, 8, 2, 7, 1, 3, 5, 0, 9, 4),
+    (8, 2, 7, 1, 3, 5, 0, 9, 4, 6),
+    (2, 7, 1, 3, 5, 0, 9, 4, 6, 8),
+    (7, 1, 3, 5, 0, 9, 4, 6, 8, 2),
+    (1, 3, 5, 0, 9, 4, 6, 8, 2, 7),
+    (3, 5, 0, 9, 4, 6, 8, 2, 7, 1),
+    (5, 0, 9, 4, 6, 8, 2, 7, 1, 3),
+)
+
+
+def normalize_reference(value: str) -> str:
+    """Compacte une référence de paiement : sans espaces."""
+    return re.sub(r"\s", "", value or "")
+
+
+def mod10_recursive(chiffres: str) -> int:
+    """Chiffre de contrôle « modulo 10 récursif » d'une suite de chiffres."""
+    report = 0
+    for chiffre in chiffres:
+        report = _REPORTS_MOD10[report][int(chiffre)]
+    return (10 - report) % 10
+
+
+def validate_qr_reference(value: str) -> None:
+    """Vérifie une référence structurée QRR : 27 chiffres, dernier de contrôle.
+
+    C'est le contrôle qui distingue une référence réellement conforme d'une
+    suite de chiffres plausible. Une référence fausse produit un paiement que
+    la banque ne sait pas rapprocher — l'argent arrive sans qu'on sache de qui.
+    """
+    compact = normalize_reference(value)
+    if not re.fullmatch(r"\d{27}", compact):
+        raise ValidationError(
+            _("Une référence QRR compte 27 chiffres ; « %(value)s » n'y correspond pas."),
+            code="qrr_forme",
+            params={"value": value},
+        )
+    if mod10_recursive(compact[:26]) != int(compact[26]):
+        raise ValidationError(
+            _("Le chiffre de contrôle de la référence « %(value)s » est faux."),
+            code="qrr_cle",
+            params={"value": value},
+        )
+
+
+def is_qr_iban(value: str) -> bool:
+    """Dit si un IBAN suisse est un QR-IBAN.
+
+    Un QR-IBAN se reconnaît à son identifiant d'institution compris entre 30000
+    et 31999 : c'est lui qui impose une référence structurée QRR. Confondre les
+    deux fait produire des factures que la banque refuse.
+    """
+    compact = normalize_iban(value)
+    if not re.fullmatch(r"CH\d{2}\d{5}.*", compact):
+        return False
+    return 30000 <= int(compact[4:9]) <= 31999
+
+
 def validate_swiss_postal_code(value: str) -> None:
     """Un NPA suisse est un nombre de quatre chiffres entre 1000 et 9999."""
     if not re.fullmatch(r"\d{4}", value or "") or not 1000 <= int(value) <= 9999:

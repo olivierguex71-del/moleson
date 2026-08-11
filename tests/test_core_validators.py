@@ -10,8 +10,11 @@ from django.core.exceptions import ValidationError
 
 from apps.core.validators import (
     format_iban,
+    is_qr_iban,
     normalize_iban,
+    normalize_reference,
     validate_iban,
+    validate_qr_reference,
     validate_swiss_postal_code,
 )
 
@@ -77,3 +80,72 @@ def test_les_npa_suisses_passent(npa):
 def test_les_npa_hors_norme_sont_rejetes(npa):
     with pytest.raises(ValidationError):
         validate_swiss_postal_code(npa)
+
+
+# --- Conformité QR-facture -------------------------------------------------
+
+# Coordonnées de paiement de l'institution, relevées dans l'analyse des exports
+# (docs/analyse-exports-welante.md). Elles figurent sur toute facture émise et
+# ne constituent pas une donnée personnelle.
+QR_IBAN_UNIPOP = "CH21 3000 0001 1700 4851 9"
+REFERENCE_UNIPOP = "00 00000 00016 65740 00018 40088"
+
+
+def test_la_reference_d_une_vraie_qr_facture_est_reconnue_conforme():
+    """Éprouve le calcul de clé sur un cas réel plutôt que sur un exemple inventé."""
+    validate_qr_reference(REFERENCE_UNIPOP)
+
+
+def test_un_seul_chiffre_modifie_est_detecte():
+    """C'est tout l'objet de la clé : un paiement mal référencé arrive sans qu'on
+    sache de qui il vient.
+    """
+    altere = REFERENCE_UNIPOP[:-1] + ("7" if REFERENCE_UNIPOP[-1] != "7" else "6")
+
+    with pytest.raises(ValidationError) as erreur:
+        validate_qr_reference(altere)
+
+    assert erreur.value.code == "qrr_cle"
+
+
+def test_deux_chiffres_intervertis_dans_la_reference_sont_detectes():
+    compact = normalize_reference(REFERENCE_UNIPOP)
+    interverti = compact[:20] + compact[21] + compact[20] + compact[22:]
+
+    if interverti != compact:  # l'interversion n'a de sens que si les chiffres diffèrent
+        with pytest.raises(ValidationError):
+            validate_qr_reference(interverti)
+
+
+@pytest.mark.parametrize("invalide", ["", "123", "00 00000 00016 65740 00018 4008", "abc"])
+def test_une_reference_mal_formee_est_refusee(invalide):
+    with pytest.raises(ValidationError) as erreur:
+        validate_qr_reference(invalide)
+
+    assert erreur.value.code == "qrr_forme"
+
+
+def test_la_reference_se_valide_espacee_ou_compacte():
+    validate_qr_reference(REFERENCE_UNIPOP)
+    validate_qr_reference(normalize_reference(REFERENCE_UNIPOP))
+
+
+def test_le_qr_iban_de_l_institution_est_reconnu():
+    """Un QR-IBAN impose une référence structurée ; l'IBAN ordinaire, non.
+
+    Les confondre fait produire des factures que la banque refuse.
+    """
+    assert is_qr_iban(QR_IBAN_UNIPOP)
+
+
+def test_un_iban_ordinaire_n_est_pas_un_qr_iban():
+    assert not is_qr_iban(IBAN_VALIDE)
+
+
+@pytest.mark.parametrize("iban", ["CH2130000001170048519", "CH4431999123000889012"])
+def test_les_identifiants_d_institution_30000_a_31999_marquent_le_qr_iban(iban):
+    assert is_qr_iban(iban)
+
+
+def test_un_iban_etranger_n_est_pas_un_qr_iban():
+    assert not is_qr_iban("DE89370400440532013000")

@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.enrolments",
     "apps.communications",
+    "apps.accounto",
     # Outillage de reprise des données Welante. Disparaîtra une fois la
     # migration faite et vérifiée.
     "apps.welante",

@@ -51,6 +51,31 @@ docker compose run --rm app uv lock
 docker compose build app
 ```
 
+## Phase 0 — validation Accounto
+
+Éprouve, avant tout développement de la facturation, que l'API rend bien le PDF
+d'une QR-facture conforme et non seulement une page à consulter.
+
+```bash
+# Renseigner d'abord ACCOUNTO_BASE_URL et ACCOUNTO_API_KEY dans .env
+docker compose run --rm app python manage.py accounto_check
+
+# Sans rien créer côté Accounto :
+docker compose run --rm app python manage.py accounto_check --no-create
+
+# Pour examiner le bulletin à l'œil :
+docker compose run --rm app python manage.py accounto_check --save-pdf data/essai.pdf
+```
+
+La facture d'essai porte des coordonnées **inventées** : la Phase 0 pousse des
+données vers un service tiers, jamais celles d'un participant.
+
+Quatre prérequis sont éprouvés : accès à l'API, création d'une facture,
+récupération du PDF et sa conformité, puis corrélation par `reference` et suivi
+par `updated_at_start`. Le contrôle de conformité vérifie la clé de la référence
+structurée et l'accord QR-IBAN / référence — une référence dont la clé est
+fausse produit un paiement que la banque ne sait pas rapprocher.
+
 ## Migration depuis Welante
 
 À faire sur la machine où se trouvent les exports, `data/` étant recopié à la main.
